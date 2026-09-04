@@ -34,10 +34,10 @@ For local development, launch Claude Code with:
 claude --plugin-dir ./plugins/code-review
 ```
 
-To test the marketplace checkout, add this repository by absolute path and install the plugin:
+Add the private marketplace repository and install the plugin:
 
 ```text
-/plugin marketplace add <absolute-path-to-this-repository>
+/plugin marketplace add analogproblems/codex-code-review
 /plugin install code-review@codex-code-review
 ```
 
