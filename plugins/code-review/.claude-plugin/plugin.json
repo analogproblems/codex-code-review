@@ -1,0 +1,8 @@
+{
+  "name": "code-review",
+  "version": "0.1.0",
+  "description": "Review GitHub pull requests with Codex and post the findings as a PR comment.",
+  "author": {
+    "name": "Codex Code Review contributors"
+  }
+}

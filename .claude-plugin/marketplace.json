@@ -1,0 +1,21 @@
+{
+  "name": "codex-code-review",
+  "owner": {
+    "name": "Codex Code Review contributors"
+  },
+  "metadata": {
+    "description": "A Codex-backed drop-in replacement for Claude Code's code-review plugin.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "code-review",
+      "description": "Review GitHub pull requests with Codex and post the findings as a PR comment.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Codex Code Review contributors"
+      },
+      "source": "./plugins/code-review"
+    }
+  ]
+}
