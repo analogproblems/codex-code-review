@@ -1,5 +1,5 @@
 {
-  "description": "Optional stop-time review gate for Codex Companion.",
+  "description": "Codex review routing, session lifecycle, and optional stop-time review gate.",
   "hooks": {
     "SessionStart": [
       {
@@ -8,8 +8,29 @@
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-lifecycle-hook.mjs\" SessionStart",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/review-routing-hook.mjs\"",
+            "timeout": 5
           }
         ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/review-routing-hook.mjs\"", "timeout": 5 }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/review-routing-hook.mjs\"", "timeout": 5 }]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/review-routing-hook.mjs\"", "timeout": 5 }]
       }
     ],
     "SessionEnd": [

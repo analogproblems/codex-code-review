@@ -1,12 +1,14 @@
 # Codex-backed code review for Claude Code
 
-Use Codex's native reviewer as a drop-in replacement for Claude Code's `/code-review` plugin.
+Route code reviews to Codex's native reviewer, including Opulent's mandatory review lane,
+and use `/code-review` when you want a GitHub PR summary comment.
 
 This plugin is for Claude Code users who want an easy way to start using Codex from the workflow
 they already have.
 
 ## What You Get
 
+- `code-review:reviewer` to take over Opulent's review lane automatically while this plugin is enabled
 - `/code-review` to review the current branch's GitHub pull request and post one summary comment
 - `/code-review:review` for a normal read-only Codex review
 - `/code-review:adversarial-review` for a steerable challenge review
@@ -17,8 +19,8 @@ they already have.
 - **ChatGPT subscription (incl. Free) or OpenAI API key.**
   - Usage will contribute to your Codex usage limits. [Learn more](https://developers.openai.com/codex/pricing).
 - **Node.js 18.18 or later**
-- **Git and the GitHub CLI (`gh`)**, with `gh auth login` completed
-- **A git remote matching the pull request's base GitHub repository**
+- **Git** for local reviews
+- **The GitHub CLI (`gh`)**, with `gh auth login` completed, and **a git remote matching the pull request's base GitHub repository** for the `/code-review` PR-comment workflow only
 
 ## Install
 
@@ -64,7 +66,7 @@ If Codex is installed but not logged in yet, run:
 After install, you should see:
 
 - the slash commands listed below
-- the `code-review:codex-rescue` subagent in `/agents`
+- the `code-review:reviewer` and `code-review:codex-rescue` subagents in `/agents`
 
 One simple first run is:
 
@@ -75,6 +77,62 @@ One simple first run is:
 ```
 
 ## Usage
+
+### Automatic review routing with Opulent
+
+Enable both Opulent and `code-review@codex-code-review`, then start a new Claude Code session.
+No Opulent source changes or settings edits are required. Keep Anthropic's same-named
+`code-review@claude-plugins-official` disabled.
+
+The integration was evaluated against Opulent **0.25.1**, commit
+`755f79ec2c5b1bc15ace4985e14650b9bb6e4501`, supplied at
+`C:\Users\jwhyte\Claude\Opulent`. That build explicitly selects `opulent:reviewer`
+in its session policy and records reviews by the configured provider name.
+
+While this plugin is enabled:
+
+- Session-start and per-prompt context tell Claude to use `code-review:reviewer` for all code reviews. Opulent's architect, coding, mechanical, test and merge-decision lanes remain unchanged.
+- A `PreToolUse` hook redirects `Agent`/`Task` calls for `opulent:reviewer`, the bare `reviewer`, code-review/code-reviewer, security-reviewer and test-reviewer roles, and any opted-in Opulent `review.provider`. It preserves the full tool input except the reviewer type and obsolete Claude model/effort overrides. It does not auto-approve permissions. Resuming a foreign reviewer is blocked until its previous findings are explicitly included in a fresh Codex brief.
+- `code-review:reviewer` is a Bash-only Haiku forwarding wrapper, not a Claude reviewer. It sends the literal brief to an isolated, read-only Codex `review/start` with a custom target. Codex gets the exact scope, unit, hazards, checks, rationale and previous-round delta. No scope defaults to staged, unstaged and untracked work against HEAD.
+- The adapter requires a completed native review and an explicit, unambiguous `SAFE to merge` or `NOT SAFE with N Critical findings` verdict. Native rendering can put the verdict before findings; the adapter moves that line to the end for Opulent's parser. Missing/ambiguous verdicts or runtime failures leave the review incomplete, with no Claude fallback or fabricated approval.
+- This local lane does **not** use `gh`, post comments, or change reviewed files. Only the explicit `/code-review` workflow posts to GitHub. Plugin job records and an opted-in PR-lane ledger are the only review bookkeeping writes.
+
+For Opulent's optional PR lane, keep your existing `.claude/pr-lane.json` unchanged.
+If it uses the `pr-lane/1` schema, the adapter appends a `reviewed` record after a
+completed Codex verdict for the brief's `unit:`. If you already explicitly set
+`review.provider` to `code-review:reviewer`, Opulent's own Agent recorder handles
+the record instead. Absent or invalid config stays inert. The adapter never creates
+config, changes the merge policy, or advances the review ladder on a failed review.
+Background launch acknowledgments are not review completion; the forwarding agent
+waits for Codex before returning its final result.
+
+For Workflow/ultracode, the policy instructs Claude to use
+`agentType: "code-review:reviewer"`, without the old Opus model/effort override.
+Prefer the standard `Agent` tool. The deterministic redirect covers `Agent`/`Task`;
+custom tools that launch agents without these hooks and inline model prose cannot
+be forcibly intercepted by a plugin. `SubagentStart` adds the forwarding contract
+where Claude emits that event. This is routing integration, not a security boundary
+or a guarantee against disabled hooks or conflicting higher-priority instructions.
+See the [Claude Code hooks contract](https://code.claude.com/docs/en/hooks)
+and [Codex native review API](https://learn.chatgpt.com/docs/app-server#review).
+
+To test the local build with your enabled Opulent plugin:
+
+```powershell
+claude --plugin-dir C:\Users\jwhyte\Documents\ChatGPT\codex-review\plugins\code-review
+```
+
+Run `/code-review:setup`, check `/agents` for `code-review:reviewer`, then ask:
+"Review the current changes using the normal Opulent review lane."
+The agent should be `code-review:reviewer`, and its Bash call should invoke
+`codex-companion.mjs lane-review`. Codex must be installed and authenticated;
+if unavailable, the review must remain outstanding. Installation/settings are
+never changed automatically by this repository.
+
+For the optional real-Opulent compatibility test, set `OPULENT_REFERENCE` to your
+Opulent checkout and `OPULENT_PYTHON` to a Python executable, then run
+`node --test tests/opulent-compat.test.mjs`. It runs Opulent's actual hooks and
+ledger renderer using temporary project/log directories, without modifying Opulent.
 
 ### `/code-review`
 

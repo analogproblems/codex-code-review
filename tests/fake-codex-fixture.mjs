@@ -181,6 +181,12 @@ function emitTurnCompletedLater(threadId, turnId, item, delayMs) {
 }
 
 function nativeReviewText(target) {
+  if (BEHAVIOR === "lane-review-ok") {
+    return "No material issues found.\\nSAFE to merge";
+  }
+  if (BEHAVIOR === "lane-review-findings") {
+    return "A regression prevents merging.\\nNOT SAFE with 1 Critical finding\\n\\n- [P1] Critical: Handle null — src/app.js:4\\n  Null input throws. Add a null guard. Confidence: high.";
+  }
   if (BEHAVIOR === "review-empty") {
     return "";
   }
@@ -309,6 +315,8 @@ rl.on("line", (line) => {
         break;
 
       case "thread/start": {
+        state.lastThreadStart = message.params;
+        saveState(state);
         if (BEHAVIOR === "auth-run-fails") {
           throw new Error("authentication expired; run codex login");
         }
@@ -408,6 +416,8 @@ rl.on("line", (line) => {
       }
 
       case "review/start": {
+        state.lastReviewStart = message.params;
+        saveState(state);
         const thread = ensureThread(state, message.params.threadId);
         let reviewThread = thread;
         if (message.params.delivery === "detached") {

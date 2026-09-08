@@ -1,7 +1,7 @@
 {
   "name": "code-review",
-  "version": "0.1.0",
-  "description": "Review GitHub pull requests with Codex and post the findings as a PR comment.",
+  "version": "0.2.0",
+  "description": "Route code reviews to Codex, superseding Opulent's reviewer lane, with optional GitHub PR summary comments.",
   "author": {
     "name": "Codex Code Review contributors"
   }

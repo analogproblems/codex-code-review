@@ -65,6 +65,7 @@ import {
   SESSION_ID_ENV
 } from "./lib/tracked-jobs.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
+import { executeLaneReviewRun } from "./lib/lane-review.mjs";
 import {
   renderNativeReviewResult,
   renderReviewResult,
@@ -92,6 +93,7 @@ function printUsage() {
       "  node scripts/codex-companion.mjs setup [--enable-review-gate|--disable-review-gate] [--json]",
       "  node scripts/codex-companion.mjs pr-review [--wait|--background] [--force] [--pr <number|url>] [number|url]",
       "  node scripts/codex-companion.mjs review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>]",
+      "  node scripts/codex-companion.mjs lane-review [--prompt-file <file>] [--cwd <directory>] [--json] (or brief on stdin)",
       "  node scripts/codex-companion.mjs adversarial-review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>] [focus text]",
       "  node scripts/codex-companion.mjs task [--background] [--write] [--resume-last|--resume|--fresh] [--model <model|spark>] [--effort <none|minimal|low|medium|high|xhigh>] [prompt]",
       "  node scripts/codex-companion.mjs transfer [--source <claude-jsonl>] [--json]",
@@ -1006,6 +1008,25 @@ async function handleReview(argv) {
   });
 }
 
+async function handleLaneReview(argv) {
+  const { options, positionals } = parseArgs(argv, {
+    valueOptions: ["prompt-file", "cwd", "model"],
+    booleanOptions: ["json"]
+  });
+  if (positionals.length) throw new Error("lane-review accepts only --prompt-file, --cwd, --model and --json; send the brief on stdin.");
+  const cwd = resolveCommandCwd(options);
+  const brief = readTaskPrompt(cwd, options, []);
+  if (!brief.trim()) throw new Error("Provide the complete review brief via stdin or --prompt-file.");
+  const job = createCompanionJob({
+    prefix: "review", kind: "lane-review", title: "Codex Lane Review",
+    workspaceRoot: resolveCommandWorkspace(options), jobClass: "review",
+    summary: "Reviewing the delegated brief with Codex."
+  });
+  await runForegroundCommand(job, (progress) => executeLaneReviewRun({
+    cwd, brief, model: options.model, jobId: job.id, onProgress: progress
+  }), { json: options.json });
+}
+
 async function handlePullRequestReview(argv) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["pr", "model", "cwd"],
@@ -1377,6 +1398,9 @@ async function main() {
       break;
     case "review":
       await handleReview(argv);
+      break;
+    case "lane-review":
+      await handleLaneReview(argv);
       break;
     case "adversarial-review":
       await handleReviewCommand(argv, {
