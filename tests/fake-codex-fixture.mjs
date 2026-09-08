@@ -428,6 +428,10 @@ rl.on("line", (line) => {
         }
         const turnId = nextTurnId(state);
         send({ id: message.id, result: { turn: buildTurn(turnId), reviewThreadId: reviewThread.id } });
+        if (BEHAVIOR === "review-hangs") {
+          send({ method: "turn/started", params: { threadId: reviewThread.id, turn: buildTurn(turnId) } });
+          break;
+        }
         if (BEHAVIOR === "review-fails") {
           send({ method: "turn/started", params: { threadId: reviewThread.id, turn: buildTurn(turnId) } });
           send({

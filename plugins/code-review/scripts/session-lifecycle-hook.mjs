@@ -6,6 +6,7 @@ import process from "node:process";
 
 import { terminateProcessTree } from "./lib/process.mjs";
 import { cleanupPullRequestCheckout } from "./lib/pr-review.mjs";
+import { cleanupVerification } from "./lib/verification.mjs";
 import { BROKER_ENDPOINT_ENV } from "./lib/app-server.mjs";
 import {
   clearBrokerSession,
@@ -15,7 +16,7 @@ import {
   sendBrokerShutdown,
   teardownBrokerSession
 } from "./lib/broker-lifecycle.mjs";
-import { loadState, resolveStateFile, saveState } from "./lib/state.mjs";
+import { loadState, resolveStateFile, saveState, writeJobFile } from "./lib/state.mjs";
 import { TRANSCRIPT_PATH_ENV } from "./lib/claude-session-transfer.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
 
@@ -70,7 +71,20 @@ async function cleanupSessionJobs(cwd, sessionId) {
     }
   }
 
+  const stoppedJobs = loadState(workspaceRoot).jobs;
   for (const job of removedJobs) {
+    Object.assign(job, stoppedJobs.find((latest) => latest.id === job.id) ?? {});
+    if (job.verificationResources) {
+      const cleanup = await cleanupVerification(job.verificationResources);
+      job.verificationCleanup = cleanup;
+      job.verificationStatus = "cancelled";
+      job.status = "cancelled";
+      job.pid = null;
+      if (cleanup.status === "needs-attention") {
+        process.stderr.write(`Verification cleanup requires attention: ${cleanup.error}\n${cleanup.commands.join("\n")}\n`);
+      } else job.verificationResources = null;
+      writeJobFile(workspaceRoot, job.id, job);
+    }
     if (!job.reviewCheckout) {
       continue;
     }
@@ -89,7 +103,7 @@ async function cleanupSessionJobs(cwd, sessionId) {
 
   saveState(workspaceRoot, {
     ...state,
-    jobs: state.jobs.filter((job) => job.sessionId !== sessionId)
+    jobs: state.jobs.filter((job) => job.sessionId !== sessionId || job.verificationCleanup?.status === "needs-attention")
   });
 }
 

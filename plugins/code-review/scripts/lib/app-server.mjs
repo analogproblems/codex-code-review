@@ -348,7 +348,18 @@ export class CodexAppServerClient {
     const client = brokerEndpoint
       ? new BrokerCodexAppServerClient(cwd, { ...options, brokerEndpoint })
       : new SpawnedCodexAppServerClient(cwd, options);
-    await client.initialize();
+    let timer;
+    try {
+      await Promise.race([
+        client.initialize(),
+        new Promise((resolve, reject) => {
+          timer = setTimeout(() => reject(new Error("Codex app-server initialization timed out.")), options.initializeTimeoutMs ?? 30000);
+        })
+      ]);
+    } catch (error) {
+      await client.close();
+      throw error;
+    } finally { clearTimeout(timer); }
     return client;
   }
 }

@@ -41,11 +41,22 @@ export function readOpulentConfig(cwd, env = process.env) {
 export function routingOutput(payload, pluginRoot, env = process.env) {
   const event = payload.hook_event_name;
   const context = (additionalContext) => ({ hookSpecificOutput: { hookEventName: event, additionalContext } });
-  if (event === "SessionStart" || event === "UserPromptSubmit") return context(REVIEW_POLICY);
+  if (event === "SessionStart" || event === "UserPromptSubmit") return context(`${REVIEW_POLICY}\nDocumentation/runbook passes may be delegated separately; they do not replace the Codex code gate.`);
+
+  // Claude uses the entire command as the background-task label when Bash has
+  // no description. Keep heredoc briefs out of that label without changing the
+  // command or granting permissions. Only our review invocation is in scope.
+  if (event === "PreToolUse" && payload.tool_name === "Bash") {
+    const input = payload.tool_input;
+    const firstLine = typeof input?.command === "string" ? input.command.split(/\r?\n/, 1)[0] : "";
+    if (!/codex-companion\.mjs["']?\s+lane-review(?:\s|$)/.test(firstLine)) return null;
+    if (typeof input.description === "string" && input.description.trim() && input.description.length <= 80 && !/[\r\n]/.test(input.description)) return null;
+    return { hookSpecificOutput: { hookEventName: event, updatedInput: { ...input, description: "Codex review" } } };
+  }
 
   const provider = readOpulentConfig(payload.cwd, env)?.provider;
   if (event === "SubagentStart" && isReviewAgent(payload.agent_type, provider)) {
-    return context(`${REVIEW_POLICY}\nYou are a forwarding wrapper, not a Claude reviewer. Run node with the absolute script path ${JSON.stringify(path.join(pluginRoot, "scripts", "codex-companion.mjs"))} and the lane-review subcommand. Send the full brief literally via stdin using a single-quoted heredoc with a delimiter absent from the brief (or a prompt file); never interpolate it into shell arguments. Wait for completion, return stdout verbatim, and surface nonzero exits. Do not inspect code, fix it, or invent a verdict. Do not delegate to another reviewer.`);
+    return context(`${REVIEW_POLICY}\nYou are a forwarding wrapper, not a Claude reviewer. Run node with the absolute script path ${JSON.stringify(path.join(pluginRoot, "scripts", "codex-companion.mjs"))} and the lane-review subcommand. Set Bash description to "Codex review" (never the brief) and run_in_background to true, then wait through polling timeouts for the one-hour review budget. Send the full brief, scope, unit, hazards, checks and previous findings literally via stdin using a single-quoted heredoc with a delimiter absent from the brief (or a prompt file); never interpolate it into shell arguments. Add --verify only with explicit user consent and a selected plan; no host test execution. Wait for completion, return stdout verbatim, and surface nonzero exits. Do not inspect code, fix it, post to GitHub, delegate another review, or invent a verdict. Codex failure leaves the review outstanding; no Claude fallback. Preserve Opulent's review rounds and merge decisions.`);
   }
   if (event !== "PreToolUse" || !["Agent", "Task"].includes(payload.tool_name)) return null;
   const input = payload.tool_input;

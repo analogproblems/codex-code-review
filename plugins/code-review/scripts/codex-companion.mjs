@@ -66,6 +66,7 @@ import {
 } from "./lib/tracked-jobs.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
 import { executeLaneReviewRun } from "./lib/lane-review.mjs";
+import { parseVerificationPlan, cleanupVerification } from "./lib/verification.mjs";
 import {
   renderNativeReviewResult,
   renderReviewResult,
@@ -93,7 +94,7 @@ function printUsage() {
       "  node scripts/codex-companion.mjs setup [--enable-review-gate|--disable-review-gate] [--json]",
       "  node scripts/codex-companion.mjs pr-review [--wait|--background] [--force] [--pr <number|url>] [number|url]",
       "  node scripts/codex-companion.mjs review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>]",
-      "  node scripts/codex-companion.mjs lane-review [--prompt-file <file>] [--cwd <directory>] [--json] (or brief on stdin)",
+      "  node scripts/codex-companion.mjs lane-review [--prompt-file <file>] [--verify <plan.json>] [--cwd <directory>] [--json] (or brief on stdin)",
       "  node scripts/codex-companion.mjs adversarial-review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>] [focus text]",
       "  node scripts/codex-companion.mjs task [--background] [--write] [--resume-last|--resume|--fresh] [--model <model|spark>] [--effort <none|minimal|low|medium|high|xhigh>] [prompt]",
       "  node scripts/codex-companion.mjs transfer [--source <claude-jsonl>] [--json]",
@@ -1010,11 +1011,12 @@ async function handleReview(argv) {
 
 async function handleLaneReview(argv) {
   const { options, positionals } = parseArgs(argv, {
-    valueOptions: ["prompt-file", "cwd", "model"],
+    valueOptions: ["prompt-file", "cwd", "model", "verify"],
     booleanOptions: ["json"]
   });
-  if (positionals.length) throw new Error("lane-review accepts only --prompt-file, --cwd, --model and --json; send the brief on stdin.");
+  if (positionals.length) throw new Error("lane-review accepts only --prompt-file, --verify, --cwd, --model and --json; send the brief on stdin.");
   const cwd = resolveCommandCwd(options);
+  const verificationPlan = options.verify ? parseVerificationPlan(JSON.parse(fs.readFileSync(path.resolve(cwd, options.verify), "utf8"))) : null;
   const brief = readTaskPrompt(cwd, options, []);
   if (!brief.trim()) throw new Error("Provide the complete review brief via stdin or --prompt-file.");
   const job = createCompanionJob({
@@ -1023,7 +1025,8 @@ async function handleLaneReview(argv) {
     summary: "Reviewing the delegated brief with Codex."
   });
   await runForegroundCommand(job, (progress) => executeLaneReviewRun({
-    cwd, brief, model: options.model, jobId: job.id, onProgress: progress
+    cwd, brief, model: options.model, jobId: job.id, onProgress: progress, verificationPlan,
+    onVerificationUpdate: (patch) => persistJobMetadata(job.workspaceRoot, job.id, patch)
   }), { json: options.json });
 }
 
@@ -1327,6 +1330,14 @@ async function handleCancel(argv) {
 
   terminateProcessTree(job.pid ?? Number.NaN);
   appendLogLine(job.logFile, "Cancelled by user.");
+  // The worker can publish resources between the initial read and termination.
+  const afterStop = readStoredJob(workspaceRoot, job.id) ?? existing;
+  const verificationResources = afterStop.verificationResources ?? job.verificationResources;
+  const verificationCleanup = await cleanupVerification(verificationResources);
+  const verificationPatch = verificationResources ? {
+    verificationStatus: "cancelled", verificationCleanup,
+    verificationResources: verificationCleanup.status === "needs-attention" ? verificationResources : null
+  } : {};
 
   const checkout = existing.reviewCheckout ?? job.reviewCheckout ?? null;
   const cleanup = await cleanupPullRequestCheckout(
@@ -1343,6 +1354,7 @@ async function handleCancel(argv) {
   const completedAt = nowIso();
   const nextJob = {
     ...job,
+    ...verificationPatch,
     status: "cancelled",
     phase: "cancelled",
     pid: null,
@@ -1354,12 +1366,13 @@ async function handleCancel(argv) {
   };
 
   writeJobFile(workspaceRoot, job.id, {
-    ...existing,
+    ...afterStop,
     ...nextJob,
     cancelledAt: completedAt
   });
   upsertJob(workspaceRoot, {
     id: job.id,
+    ...verificationPatch,
     status: "cancelled",
     phase: "cancelled",
     pid: null,
@@ -1376,6 +1389,7 @@ async function handleCancel(argv) {
     title: job.title,
     turnInterruptAttempted: interrupt.attempted,
     turnInterrupted: interrupt.interrupted,
+    verificationCleanup,
     cleanup
   };
 

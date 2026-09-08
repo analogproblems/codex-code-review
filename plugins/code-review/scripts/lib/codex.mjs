@@ -1,4 +1,5 @@
 // Modified from the OpenAI Codex plugin for Claude Code.
+import { REVIEW_TIMEOUT_MS, withReviewTimeout } from "./review-timeout.mjs";
 /**
  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
@@ -1008,6 +1009,7 @@ export async function interruptAppServerTurn(cwd, { threadId, turnId }) {
 }
 
 export async function runAppServerReview(cwd, options = {}) {
+  const deadline = Date.now() + (options.timeoutMs ?? REVIEW_TIMEOUT_MS);
   const availability = getCodexAvailability(cwd);
   if (!availability.available) {
     throw new Error("Codex CLI is not installed or is missing required runtime support. Install it with `npm install -g @openai/codex`, then rerun `/code-review:setup`.");
@@ -1017,54 +1019,63 @@ export async function runAppServerReview(cwd, options = {}) {
   // those runs so no shared broker retains the temporary cwd on Windows.
   const withReviewServer = options.isolated ? withDirectAppServer : withAppServer;
   return withReviewServer(cwd, async (client) => {
-    emitProgress(options.onProgress, "Starting Codex review thread.", "starting");
-    const thread = await startThread(client, cwd, {
-      model: options.model,
-      effort: options.effort,
-      review: true,
-      sandbox: "read-only",
-      ephemeral: true,
-      threadName: options.threadName
-    });
-    const sourceThreadId = thread.thread.id;
-    emitProgress(options.onProgress, `Thread ready (${sourceThreadId}).`, "starting", {
-      threadId: sourceThreadId
-    });
-    const delivery = options.delivery ?? "inline";
+    let activeThreadId = null, activeTurnId = null;
+    return withReviewTimeout(async () => {
+      emitProgress(options.onProgress, "Starting Codex review thread.", "starting");
+      const thread = await startThread(client, cwd, {
+        model: options.model,
+        effort: options.effort,
+        review: true,
+        sandbox: "read-only",
+        ephemeral: true,
+        threadName: options.threadName
+      });
+      const sourceThreadId = thread.thread.id;
+      activeThreadId = sourceThreadId;
+      emitProgress(options.onProgress, `Thread ready (${sourceThreadId}).`, "starting", {
+        threadId: sourceThreadId
+      });
+      const delivery = options.delivery ?? "inline";
 
-    const turnState = await captureTurn(
-      client,
-      sourceThreadId,
-      () =>
-        client.request("review/start", {
-          threadId: sourceThreadId,
-          delivery,
-          target: options.target
-        }),
-      {
-        onProgress: options.onProgress,
-        onResponse(response, state) {
-          if (response.reviewThreadId) {
-            state.threadIds.add(response.reviewThreadId);
-            if (delivery === "detached") {
-              state.threadId = response.reviewThreadId;
+      const turnState = await captureTurn(
+        client,
+        sourceThreadId,
+        () =>
+          client.request("review/start", {
+            threadId: sourceThreadId,
+            delivery,
+            target: options.target
+          }),
+        {
+          onProgress: options.onProgress,
+          onResponse(response, state) {
+            activeTurnId = response.turn?.id ?? state.turnId;
+            activeThreadId = response.reviewThreadId ?? sourceThreadId;
+            if (response.reviewThreadId) {
+              state.threadIds.add(response.reviewThreadId);
+              if (delivery === "detached") {
+                state.threadId = response.reviewThreadId;
+              }
             }
           }
         }
-      }
-    );
+      );
 
-    return {
-      status: buildResultStatus(turnState),
-      threadId: turnState.threadId,
-      sourceThreadId,
-      turnId: turnState.turnId,
-      reviewText: turnState.reviewText,
-      reasoningSummary: turnState.reasoningSummary,
-      turn: turnState.finalTurn,
-      error: turnState.error,
-      stderr: cleanCodexStderr(client.stderr)
-    };
+      return {
+        status: buildResultStatus(turnState),
+        threadId: turnState.threadId,
+        sourceThreadId,
+        turnId: turnState.turnId,
+        reviewText: turnState.reviewText,
+        reasoningSummary: turnState.reasoningSummary,
+        turn: turnState.finalTurn,
+        error: turnState.error,
+        stderr: cleanCodexStderr(client.stderr)
+      };
+    }, deadline - Date.now(), () => {
+      if (activeThreadId && activeTurnId) client.request("turn/interrupt", { threadId: activeThreadId, turnId: activeTurnId }).catch(() => {});
+      // The isolated server is also closed by withDirectAppServer's finally.
+    });
   });
 }
 

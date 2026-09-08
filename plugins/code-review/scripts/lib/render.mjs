@@ -151,6 +151,9 @@ function pushJobDetails(lines, job, options = {}) {
   if (job.cleanupStatus) {
     lines.push(`  Cleanup: ${job.cleanupStatus}`);
   }
+  if (job.verificationStatus) lines.push(`  Verification: ${job.verificationStatus}`);
+  if (job.verificationCleanup) lines.push(`  Verification cleanup: ${job.verificationCleanup.status}`);
+  for (const command of job.verificationCleanup?.commands ?? []) lines.push(`    ${command}`);
   if (job.cleanupStatus === "needs-attention" && job.cleanup?.cleanupCommand) {
     lines.push("  Cleanup command:");
     for (const command of String(job.cleanup.cleanupCommand).split(/\r?\n/)) {
@@ -410,6 +413,9 @@ export function renderJobStatusReport(job) {
 }
 
 export function renderStoredJobResult(job, storedJob) {
+  // Lane rendering includes adapter-observed verification and puts the verdict
+  // last. Native stdout alone would discard both adapter disclosures and order.
+  if ((storedJob?.kind ?? job.kind) === "lane-review" && storedJob?.rendered) return storedJob.rendered;
   const threadId = storedJob?.threadId ?? job.threadId ?? null;
   const resumeCommand = threadId ? `codex resume ${threadId}` : null;
   if (isStructuredReviewStoredResult(storedJob) && storedJob?.rendered) {
@@ -470,6 +476,9 @@ export function renderStoredJobResult(job, storedJob) {
 function appendStoredReviewMetadata(output, job, storedJob) {
   const metadata = { ...job, ...storedJob };
   const lines = [];
+  if (metadata.verificationStatus) lines.push(`Verification: ${metadata.verificationStatus}`);
+  if (metadata.verificationCleanup) lines.push(`Verification cleanup: ${metadata.verificationCleanup.status}`);
+  lines.push(...(metadata.verificationCleanup?.commands ?? []));
   if (metadata.repository) {
     lines.push(`Repository: ${metadata.repository}`);
   }
@@ -502,6 +511,7 @@ export function renderCancelReport(job) {
   if (job.title) {
     lines.push(`- Title: ${job.title}`);
   }
+  if (job.verificationCleanup) lines.push(`- Verification cleanup: ${job.verificationCleanup.status}`, ...(job.verificationCleanup.commands ?? []));
   if (job.summary) {
     lines.push(`- Summary: ${job.summary}`);
   }

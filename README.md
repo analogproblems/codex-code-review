@@ -99,10 +99,10 @@ in its session policy and records reviews by the configured provider name.
 
 While this plugin is enabled:
 
-- Session-start and per-prompt context tell Claude to use `code-review:reviewer` for all code reviews. Opulent's architect, coding, mechanical, test and merge-decision lanes remain unchanged.
+- Session-start, per-prompt and reviewer-launch policy tell Claude to use `code-review:reviewer` for all code reviews. Reviewer subagents receive a self-contained forwarding contract. Opulent's architect, coding, mechanical, test and merge-decision lanes remain unchanged; separate documentation/runbook passes are permitted.
 - A `PreToolUse` hook redirects `Agent`/`Task` calls for `opulent:reviewer`, the bare `reviewer`, code-review/code-reviewer, security-reviewer and test-reviewer roles, and any opted-in Opulent `review.provider`. It preserves the full tool input except the reviewer type and obsolete Claude model/effort overrides. It does not auto-approve permissions. Resuming a foreign reviewer is blocked until its previous findings are explicitly included in a fresh Codex brief.
 - `code-review:reviewer` is a Bash-only Haiku forwarding wrapper, not a Claude reviewer. It sends the literal brief to an isolated, read-only Codex `review/start` with a custom target. Codex gets the exact scope, unit, hazards, checks, rationale and previous-round delta. No scope defaults to staged, unstaged and untracked work against HEAD.
-- The adapter requires a completed native review and an explicit, unambiguous `SAFE to merge` or `NOT SAFE with N Critical findings` verdict. Native rendering can put the verdict before findings; the adapter moves that line to the end for Opulent's parser. Missing/ambiguous verdicts or runtime failures leave the review incomplete, with no Claude fallback or fabricated approval.
+- The adapter requires a completed native review and an explicit, unambiguous `SAFE to merge with N warnings` or `NOT SAFE with N Critical findings and M warnings` verdict. Older verdicts without warning counts remain accepted; missing counts are unknown, not zero. Counts are stored with results and in adapter-managed ledger notes. Native rendering can put the verdict before findings; the adapter moves that line to the end for Opulent's parser. Missing/ambiguous verdicts or runtime failures leave the review incomplete, with no Claude fallback or fabricated approval.
 - This local lane does **not** use `gh`, post comments, or change reviewed files. Only the explicit `/code-review` workflow posts to GitHub. Plugin job records and an opted-in PR-lane ledger are the only review bookkeeping writes.
 
 For Opulent's optional PR lane, keep your existing `.claude/pr-lane.json` unchanged.
@@ -113,6 +113,28 @@ the record instead. Absent or invalid config stays inert. The adapter never crea
 config, changes the merge policy, or advances the review ladder on a failed review.
 Background launch acknowledgments are not review completion; the forwarding agent
 waits for Codex before returning its final result.
+
+Executable verification is available explicitly via `lane-review --verify <plan.json>`.
+It runs selected argv commands against a disposable, read-only source snapshot
+in a local network-disabled Linux Docker container, then supplies the evidence
+to Codex. It never falls back to host test execution. The local review budget is
+one hour including verification; use background Bash and wait for the result.
+See [verification setup, plan format and limitations](docs/verification.md).
+
+Reports now request named `Coverage:` and `Verification:` disclosures: reviewed,
+skimmed and skipped code/prose paths with reasons, independently executed checks,
+supplied evidence, and checks not run. These are explicitly reviewer-reported;
+missing disclosures are shown as unknown, not inferred from file counts. Native
+priority (P0–P3), disposition (the brief's vocabulary, defaulting to Critical/must-fix,
+Warning/should-fix and Suggestion/note), and merge-blocking status are separate.
+Zero Critical findings does not automatically mean safe: required coverage and
+unresolved blockers still matter. The adapter does not independently validate
+model-reported coverage or finding counts.
+
+Bash review invocations use a short `description` (for example, `Codex review`)
+so background-task labels do not expand into the entire heredoc brief. A hook
+supplies that label when absent or too long, leaving the command and brief intact.
+Existing task cards created before the update are not retroactively renamed.
 
 For Workflow/ultracode, the policy instructs Claude to use
 `agentType: "code-review:reviewer"`, without the old Opus model/effort override.

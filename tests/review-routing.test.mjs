@@ -10,12 +10,21 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN = path.join(ROOT, "plugins", "code-review");
 const HOOK = path.join(PLUGIN, "scripts", "review-routing-hook.mjs");
 
-test("session and every user prompt establish the Codex review lane without replacing other Opulent lanes", () => {
-  for (const event of ["SessionStart", "UserPromptSubmit"]) {
-    assert.deepEqual(routingOutput({ hook_event_name: event }, PLUGIN), {
-      hookSpecificOutput: { hookEventName: event, additionalContext: REVIEW_POLICY }
-    });
+test("Bash review task labels stay short while the literal brief and command remain intact", () => {
+  const command = 'node "/plugin/scripts/codex-companion.mjs" lane-review <<\'BRIEF\'\nA long complete review brief\nBRIEF';
+  for (const description of [undefined, "", "x".repeat(1000), "review\nbrief"]) {
+    const input = { command, description, run_in_background: true };
+    const output = routingOutput({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: input }, PLUGIN);
+    assert.deepEqual(output.hookSpecificOutput.updatedInput, { ...input, description: "Codex review" });
+    assert.equal(output.hookSpecificOutput.permissionDecision, undefined);
   }
+  assert.equal(routingOutput({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command, description: "Codex review: D-113" } }, PLUGIN), null);
+  assert.equal(routingOutput({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "npm test" } }, PLUGIN), null);
+});
+
+test("session and every user prompt establish the Codex review lane without replacing other Opulent lanes", () => {
+  assert.ok(routingOutput({ hook_event_name: "SessionStart" }, PLUGIN).hookSpecificOutput.additionalContext.startsWith(REVIEW_POLICY));
+  assert.ok(routingOutput({ hook_event_name: "UserPromptSubmit" }, PLUGIN).hookSpecificOutput.additionalContext.startsWith(REVIEW_POLICY));
   assert.match(REVIEW_POLICY, /ALL code reviews/);
   assert.match(REVIEW_POLICY, /Keep Opulent's architect, coder, mechanic, test-runner, permissions/);
   assert.match(REVIEW_POLICY, /Do not review code yourself/);

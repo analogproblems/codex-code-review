@@ -24,7 +24,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Agent|Task",
+        "matcher": "Agent|Task|Bash",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/review-routing-hook.mjs\"", "timeout": 5 }]
       }
     ],
@@ -39,7 +39,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-lifecycle-hook.mjs\" SessionEnd",
-            "timeout": 5
+            "timeout": 60
           }
         ]
       }
@@ -50,7 +50,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stop-review-gate-hook.mjs\"",
-            "timeout": 900
+            "timeout": 3660
           }
         ]
       }

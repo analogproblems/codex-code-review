@@ -3,13 +3,42 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { buildLaneReviewInstructions, executeLaneReviewRun, laneVerdict, recordOpulentReview, renderLaneReview } from "../plugins/code-review/scripts/lib/lane-review.mjs";
+import { buildLaneReviewInstructions, executeLaneReviewRun, laneVerdict, parseLaneVerdict, reviewReporting, recordOpulentReview, renderLaneReview } from "../plugins/code-review/scripts/lib/lane-review.mjs";
 import { buildEnv, installFakeCodex } from "./fake-codex-fixture.mjs";
 import { makeTempDir, initGitRepo, run } from "./helpers.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "plugins", "code-review", "scripts", "codex-companion.mjs");
 const complete = { status: 0, turn: { status: "completed" }, reviewText: "No issues.\nSAFE to merge", threadId: "t1", turnId: "turn1", stderr: "" };
+
+test("counted verdicts remain backward compatible without guessing missing counts", () => {
+  assert.deepEqual(parseLaneVerdict("SAFE to merge with 3 warnings"), { verdict: "SAFE", criticalCount: null, warningCount: 3 });
+  assert.deepEqual(parseLaneVerdict("NOT SAFE with 0 Critical findings and 2 warnings"), { verdict: "NOT SAFE", criticalCount: 0, warningCount: 2 });
+  assert.equal(parseLaneVerdict("SAFE to merge").warningCount, null);
+  assert.equal(parseLaneVerdict("NOT SAFE with 1 Critical finding").criticalCount, 1);
+  for (const text of ["SAFE to merge with -1 warnings", "SAFE to merge with 1.5 warnings", "SAFE to merge with 99999999999999999999 warnings"]) assert.equal(laneVerdict(text), "unknown");
+});
+
+test("coverage, verification and warning counts survive rendering, storage and ledger notes", async () => {
+  const cwd = optedIn();
+  const report = "Coverage: src/app.js and docs/runbook.md reviewed; plan.md skipped (not found).\nVerification: supplied npm results inspected; tests not rerun (read-only).\nNOT SAFE with 0 Critical findings and 3 warnings\n\n- [P2] Warning / should-fix; merge-blocking: yes. Missing required coverage.";
+  const result = await executeLaneReviewRun({ cwd, brief: "unit: coverage-test" }, {
+    ensureGitRepository: () => {}, runAppServerReview: async () => ({ ...complete, reviewText: report }),
+    recordOpulentReview: (dir, brief, verdict, options) => recordOpulentReview(dir, brief, verdict, { ...options, env: {} })
+  });
+  assert.equal(result.payload.warningCount, 3);
+  assert.equal(result.payload.criticalCount, 0);
+  assert.equal(result.payload.verdict, "NOT SAFE");
+  assert.equal(result.payload.reporting.source, "reviewer-reported");
+  assert.match(result.payload.reporting.coverage, /plan.md skipped/);
+  assert.match(result.payload.reporting.verification, /tests not rerun/);
+  assert.match(fs.readFileSync(result.payload.ledger.path, "utf8"), /3 warnings/);
+  assert.ok(result.rendered.endsWith("NOT SAFE with 0 Critical findings and 3 warnings\n"));
+  assert.equal(reviewReporting("No disclosure").coverage, null);
+  const instructions = buildLaneReviewInstructions("Review code and runbook");
+  assert.match(instructions, /do not assume every P2 is non-blocking/);
+  assert.match(instructions, /Missing required coverage/);
+});
 
 function optedIn(config = { schema: "pr-lane/1" }) {
   const cwd = makeTempDir();
@@ -29,7 +58,8 @@ test("lane review forwards the full brief to isolated native review/start with n
   assert.equal(called.target.type, "custom");
   assert.ok(called.target.instructions.endsWith(brief));
   assert.equal(called.isolated, true);
-  assert.equal(result.rendered, complete.reviewText + "\n");
+  assert.ok(result.rendered.endsWith(complete.reviewText + "\n"));
+  assert.match(result.rendered, /do not assume tests were rerun/);
   assert.equal(result.payload.verdict, "SAFE");
   assert.match(buildLaneReviewInstructions("Review"), /working-tree changes against HEAD/);
   assert.throws(() => buildLaneReviewInstructions("  "), /complete review brief/);
@@ -140,7 +170,7 @@ test("lane CLI accepts a literal prompt file and rejects interpolated/unsupporte
   fs.writeFileSync(file, "Review exact base..head\nHazards: money\n");
   const result = run(process.execPath, [SCRIPT, "lane-review", "--prompt-file", file], { cwd, env });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), "No material issues found.\nSAFE to merge");
+  assert.ok(result.stdout.trim().endsWith("No material issues found.\nSAFE to merge"));
   for (const args of [["--write"], ["--force"], ["--background"], ["$(touch OWNED)"], []]) {
     const invalid = run(process.execPath, [SCRIPT, "lane-review", ...args], { cwd, env, input: "" });
     assert.equal(invalid.status, 1);

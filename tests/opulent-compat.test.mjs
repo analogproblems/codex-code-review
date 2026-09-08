@@ -34,7 +34,7 @@ test("real Opulent hooks and ledger renderer accept the substituted review lane"
     recordOpulentReview(cwd, input.prompt, "NOT SAFE", { env });
     const after = run(python, ["-B", path.join(reference, "hooks", "route-models.py")], { cwd, env, input: JSON.stringify({
       ...payload, hook_event_name: "PostToolUse", tool_input: rewritten,
-      tool_response: "Critical: A lock race.\nNOT SAFE with 1 Critical finding"
+      tool_response: "Critical: A lock race.\nNOT SAFE with 1 Critical finding and 3 warnings"
     }) });
     assert.equal(after.status, 0, after.stderr);
     const lines = fs.readFileSync(path.join(cwd, ".claude", "pr-lane", "ledger.jsonl"), "utf8").trim().split(/\r?\n/).map(JSON.parse);
