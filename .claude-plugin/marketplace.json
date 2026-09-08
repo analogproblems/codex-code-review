@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "A Codex-backed drop-in replacement for Claude Code's code-review plugin.",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "plugins": [
     {
       "name": "code-review",
       "description": "Route code reviews to Codex, superseding Opulent's reviewer lane, with optional GitHub PR summary comments.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": {
         "name": "Codex Code Review contributors"
       },

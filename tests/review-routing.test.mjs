@@ -3,7 +3,7 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import { routingOutput, REVIEW_POLICY, REVIEWER, readOpulentConfig } from "../plugins/code-review/scripts/lib/review-routing.mjs";
+import { routingOutput, REVIEW_POLICY, REVIEW_REMINDER, REVIEWER, readOpulentConfig } from "../plugins/code-review/scripts/lib/review-routing.mjs";
 import { makeTempDir, run } from "./helpers.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,7 +24,8 @@ test("Bash review task labels stay short while the literal brief and command rem
 
 test("session and every user prompt establish the Codex review lane without replacing other Opulent lanes", () => {
   assert.ok(routingOutput({ hook_event_name: "SessionStart" }, PLUGIN).hookSpecificOutput.additionalContext.startsWith(REVIEW_POLICY));
-  assert.ok(routingOutput({ hook_event_name: "UserPromptSubmit" }, PLUGIN).hookSpecificOutput.additionalContext.startsWith(REVIEW_POLICY));
+  assert.equal(routingOutput({ hook_event_name: "UserPromptSubmit" }, PLUGIN).hookSpecificOutput.additionalContext, REVIEW_REMINDER);
+  assert.ok(REVIEW_REMINDER.length < REVIEW_POLICY.length / 4);
   assert.match(REVIEW_POLICY, /ALL code reviews/);
   assert.match(REVIEW_POLICY, /Keep Opulent's architect, coder, mechanic, test-runner, permissions/);
   assert.match(REVIEW_POLICY, /Do not review code yourself/);
@@ -44,6 +45,7 @@ test("Opulent and other code-review agents are redirected without mutating their
       const { model, effort, ...preserved } = original;
       assert.deepEqual(output.hookSpecificOutput.updatedInput, { ...preserved, subagent_type: REVIEWER });
       assert.equal(output.hookSpecificOutput.permissionDecision, undefined);
+      assert.ok(output.hookSpecificOutput.additionalContext.length < REVIEW_POLICY.length / 4);
       assert.deepEqual(input, original);
     }
   }
@@ -75,6 +77,9 @@ test("reviewer SubagentStart injects the absolute runtime path and no-Claude-fal
   assert.match(context, /lane-review/);
   assert.match(context, /return stdout verbatim/);
   assert.match(context, /never interpolate it into shell arguments/);
+  assert.equal(context.includes(REVIEW_POLICY), false);
+  assert.match(context, /one-hour review budget/);
+  assert.match(context, /explicit user consent and a selected plan/);
 });
 
 test("an opted-in custom Opulent review provider is replaced without editing config", () => {

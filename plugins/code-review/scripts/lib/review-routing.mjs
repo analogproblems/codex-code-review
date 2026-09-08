@@ -8,6 +8,8 @@ Forward the complete review brief verbatim: repository/worktree, commit range or
 The reviewer agent runs a local read-only Codex review and does NOT post to GitHub. Use /code-review only for the explicit GitHub PR-comment workflow; /code-review:review and /code-review:adversarial-review remain available for their existing Codex workflows. Do not use rescue/task for code reviews.
 For Workflow/ultracode agent() calls, select agentType "${REVIEWER}" and do not pin the former Opus reviewer model/effort. Prefer the standard Agent tool so routing hooks are observed. A launched/background job is not a completed review. Wait for the Codex result before declaring the unit reviewed or safe. Do not add a second review merely because the provider changed.`;
 
+export const REVIEW_REMINDER = `Code reviews use ${REVIEWER}; forward the full brief, wait for Codex, and never substitute a Claude code review. Separate documentation/runbook passes are allowed; local reviews do not post to GitHub.`;
+
 // Match review roles, not arbitrary requests containing the word "review".
 // Non-code review skills (e.g. document review) are intentionally unaffected.
 export function isReviewAgent(name, provider = null) {
@@ -41,7 +43,8 @@ export function readOpulentConfig(cwd, env = process.env) {
 export function routingOutput(payload, pluginRoot, env = process.env) {
   const event = payload.hook_event_name;
   const context = (additionalContext) => ({ hookSpecificOutput: { hookEventName: event, additionalContext } });
-  if (event === "SessionStart" || event === "UserPromptSubmit") return context(`${REVIEW_POLICY}\nDocumentation/runbook passes may be delegated separately; they do not replace the Codex code gate.`);
+  if (event === "SessionStart") return context(`${REVIEW_POLICY}\nDocumentation/runbook passes may be delegated separately; they do not replace the Codex code gate.`);
+  if (event === "UserPromptSubmit") return context(REVIEW_REMINDER);
 
   // Claude uses the entire command as the background-task label when Bash has
   // no description. Keep heredoc briefs out of that label without changing the
@@ -56,7 +59,7 @@ export function routingOutput(payload, pluginRoot, env = process.env) {
 
   const provider = readOpulentConfig(payload.cwd, env)?.provider;
   if (event === "SubagentStart" && isReviewAgent(payload.agent_type, provider)) {
-    return context(`${REVIEW_POLICY}\nYou are a forwarding wrapper, not a Claude reviewer. Run node with the absolute script path ${JSON.stringify(path.join(pluginRoot, "scripts", "codex-companion.mjs"))} and the lane-review subcommand. Set Bash description to "Codex review" (never the brief) and run_in_background to true, then wait through polling timeouts for the one-hour review budget. Send the full brief, scope, unit, hazards, checks and previous findings literally via stdin using a single-quoted heredoc with a delimiter absent from the brief (or a prompt file); never interpolate it into shell arguments. Add --verify only with explicit user consent and a selected plan; no host test execution. Wait for completion, return stdout verbatim, and surface nonzero exits. Do not inspect code, fix it, post to GitHub, delegate another review, or invent a verdict. Codex failure leaves the review outstanding; no Claude fallback. Preserve Opulent's review rounds and merge decisions.`);
+    return context(`You are a forwarding wrapper, not a Claude reviewer. Run node with the absolute script path ${JSON.stringify(path.join(pluginRoot, "scripts", "codex-companion.mjs"))} and the lane-review subcommand. Set Bash description to "Codex review" (never the brief) and run_in_background to true, then wait through polling timeouts for the one-hour review budget. Send the full brief, scope, unit, hazards, checks and previous findings literally via stdin using a single-quoted heredoc with a delimiter absent from the brief (or a prompt file); never interpolate it into shell arguments. Add --verify only with explicit user consent and a selected plan; no host test execution. Wait for completion, return stdout verbatim, and surface nonzero exits. Do not inspect code, fix it, post to GitHub, delegate another review, or invent a verdict. Codex failure leaves the review outstanding; no Claude fallback. Preserve Opulent's review rounds and merge decisions.`);
   }
   if (event !== "PreToolUse" || !["Agent", "Task"].includes(payload.tool_name)) return null;
   const input = payload.tool_input;
@@ -76,7 +79,7 @@ export function routingOutput(payload, pluginRoot, env = process.env) {
     hookSpecificOutput: {
       hookEventName: event,
       updatedInput,
-      additionalContext: `Routed ${input.subagent_type} to ${REVIEWER}. The full brief is unchanged. ${REVIEW_POLICY}`
+      additionalContext: `Routed ${input.subagent_type} to ${REVIEWER}; full brief unchanged. Wait for Codex's completed result; do not substitute a Claude review.`
       // No permissionDecision: routing must not grant tool permissions.
     }
   };
