@@ -1,6 +1,6 @@
 {
   "name": "codex-code-review-cc",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "A Codex-backed drop-in replacement for Claude Code's code-review plugin.",

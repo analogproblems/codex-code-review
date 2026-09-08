@@ -27,6 +27,27 @@ Prepare images and dependencies yourself, then inspect the chosen image's ID
 with `docker image inspect <your-image> --format '{{.Id}}'`. Do not put credentials
 in the image. The plugin neither installs Docker nor changes its configuration.
 
+### Optional Windows setup helper
+
+From a clone of this repository, you can explicitly run the setup helper in an
+elevated 64-bit PowerShell 7 prompt under your normal Windows account:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-docker-windows.ps1
+```
+
+The helper targets x64 Windows 11 build 22631 or newer. It checks prerequisites,
+uses native DISM for VirtualMachinePlatform, installs or updates WSL when needed,
+and verifies the Docker installer's signed publisher before a per-user install.
+It does not restart Windows, accept Docker's license, launch Docker elevated,
+or download container images. Open Docker Desktop yourself afterward and verify
+the Linux engine is ready. Existing Docker installations are left unchanged.
+
+The optional `-AddCodexToUserPath` flag appends an already installed standalone
+Codex executable directory to your user PATH; it does not install Codex. Restart
+your terminal and Claude Code to pick up PATH changes. This helper is never run
+automatically by the plugin.
+
 ## Plan format
 
 This is a template: replace the placeholder with the selected local image's
@@ -100,7 +121,9 @@ as **adapter-observed** evidence, distinct from Codex's **reviewer-reported**
 coverage and verification statements. Neither proves every code/prose path was
 reviewed. Keep a separate runbook/documentation pass when appropriate.
 
-A snapshot fingerprint includes HEAD, the index and copied file contents.
+A snapshot fingerprint includes HEAD, the index, copied file contents and their
+effective executable modes. POSIX snapshots honor working-tree executable bits;
+Windows uses the Git index because Windows does not expose POSIX permissions.
 The adapter rechecks the checkout after verification and after review. Changes
 invalidate the evidence and prevent a merge verdict or adapter ledger entry.
 The evidence always identifies the current checkout snapshot; it does not claim
@@ -137,6 +160,11 @@ and result tests. To additionally run the optional live smoke test, set
 `node --test tests/verification.test.mjs`. Without that explicit image selection,
 the live test is skipped. It tests a readable snapshot, failed source writes,
 writable scratch and absent Git metadata; it does not run a paid Codex review.
+
+The Windows setup helper has separate non-mutating tests:
+`pwsh -NoProfile -File tests/install-docker-windows.tests.ps1`. They parse the
+script and exercise DISM handling with fake responses, without running DISM or
+the installer.
 
 Container controls follow the official [Docker run documentation](https://docs.docker.com/engine/containers/run/)
 and [bind-mount documentation](https://docs.docker.com/engine/storage/bind-mounts/).
