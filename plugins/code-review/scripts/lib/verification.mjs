@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { REVIEW_TIMEOUT_MS } from "./review-timeout.mjs";
+import { resolveHostExecutable as executable } from "./host-executable.mjs";
 
 const OWNER_FILE = ".verification-owner";
 const MAX_OUTPUT = 1024 * 1024;
@@ -58,19 +59,6 @@ export function cleanVerificationEnvironment(env = process.env) {
   return clean;
 }
 
-function executable(name, cwd) {
-  const envPath = Object.entries(process.env).find(([key]) => key.toLowerCase() === "path")?.[1] || "";
-  for (const dir of envPath.split(path.delimiter)) {
-    if (!path.isAbsolute(dir)) continue;
-    const candidate = path.join(dir, process.platform === "win32" ? `${name}.exe` : name);
-    try {
-      const resolved = fs.realpathSync(candidate);
-      if (!inside(cwd, resolved) && fs.statSync(resolved).isFile()) return resolved;
-    } catch { /* Next PATH entry. */ }
-  }
-  throw new Error(`${name} is unavailable outside the reviewed checkout. Verification never falls back to host test execution.`);
-}
-
 function gitOutput(cwd, args) {
   const result = spawnSync(executable("git", cwd), ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], {
     cwd, shell: false, windowsHide: true, encoding: "utf8", timeout: 10000, maxBuffer: 16 * 1024 * 1024,
@@ -78,6 +66,12 @@ function gitOutput(cwd, args) {
   });
   if (result.error || result.status !== 0) throw new Error(`Verification snapshot Git check failed: ${result.error?.message || result.stderr}`);
   return result.stdout;
+}
+
+export function snapshotFileMode(indexMode, statMode, platform = process.platform) {
+  // Windows does not expose POSIX executable permissions; use the index there.
+  const executable = platform === "win32" ? indexMode === "100755" : Boolean(statMode & 0o111);
+  return executable ? 0o755 : 0o644;
 }
 
 export function verificationSnapshot(cwd, destination = null, deadline = Date.now() + REVIEW_TIMEOUT_MS) {
@@ -115,12 +109,14 @@ export function verificationSnapshot(cwd, destination = null, deadline = Date.no
     bytes += fs.statSync(source).size;
     if (bytes > MAX_SNAPSHOT_BYTES) throw new Error("Verification snapshot exceeds the 256 MiB source limit; ignored dependencies are not copied.");
     const buffer = fs.readFileSync(source);
-    hash.update(relative).update("\0").update(buffer).update("\0");
+    const mode = snapshotFileMode(modes.get(relative), fs.statSync(source).mode);
+    hash.update(relative).update("\0").update(String(mode)).update("\0").update(buffer).update("\0");
     included.push(relative);
     if (destination) {
       const target = path.join(destination, relative);
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, buffer, { mode: modes.get(relative) === "100755" || (fs.statSync(source).mode & 0o111) ? 0o755 : 0o644 });
+      fs.writeFileSync(target, buffer, { mode });
+      fs.chmodSync(target, mode); // Also correct existing targets and restrictive umasks.
     }
   }
   return { root, head, fingerprint: hash.digest("hex"), included, excluded, bytes };

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { isProbablyText } from "./fs.mjs";
+import { resolveHostExecutable } from "./host-executable.mjs";
 import { formatCommandFailure, runCommand, runCommandChecked } from "./process.mjs";
 
 const MAX_UNTRACKED_BYTES = 24 * 1024;
@@ -10,11 +11,11 @@ const DEFAULT_INLINE_DIFF_MAX_BYTES = 256 * 1024;
 
 // Git is directly executable on Windows. Repository-derived arguments must never pass through a shell.
 function git(cwd, args, options = {}) {
-  return runCommand("git", args, { cwd, ...options, shell: false });
+  return runCommand(resolveHostExecutable("git", cwd), args, { cwd, ...options, shell: false });
 }
 
 function gitChecked(cwd, args, options = {}) {
-  return runCommandChecked("git", args, { cwd, ...options, shell: false });
+  return runCommandChecked(resolveHostExecutable("git", cwd), args, { cwd, ...options, shell: false });
 }
 
 function listUniqueFiles(...groups) {

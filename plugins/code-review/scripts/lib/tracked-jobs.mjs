@@ -87,6 +87,8 @@ export function createJobProgressUpdater(workspaceRoot, jobId) {
     if (normalized.threadId && normalized.threadId !== lastThreadId) {
       lastThreadId = normalized.threadId;
       patch.threadId = normalized.threadId;
+      lastTurnId = null;
+      patch.turnId = null;
       changed = true;
     }
 
@@ -157,11 +159,13 @@ export async function runTrackedJob(job, runner, options = {}) {
     const completionStatus = execution.exitStatus === 0 ? "completed" : "failed";
     const completedAt = nowIso();
     const existing = readStoredJobOrNull(job.workspaceRoot, job.id) ?? runningRecord;
+    const threadId = execution.threadId ?? existing.threadId ?? null;
+    const turnId = execution.turnId ?? (threadId === existing.threadId ? existing.turnId : null) ?? null;
     writeJobFile(job.workspaceRoot, job.id, {
       ...existing,
       status: completionStatus,
-      threadId: execution.threadId ?? null,
-      turnId: execution.turnId ?? null,
+      threadId,
+      turnId,
       pid: null,
       phase: completionStatus === "completed" ? "done" : "failed",
       completedAt,
@@ -171,8 +175,8 @@ export async function runTrackedJob(job, runner, options = {}) {
     upsertJob(job.workspaceRoot, {
       id: job.id,
       status: completionStatus,
-      threadId: execution.threadId ?? null,
-      turnId: execution.turnId ?? null,
+      threadId,
+      turnId,
       summary: execution.summary,
       phase: completionStatus === "completed" ? "done" : "failed",
       pid: null,
