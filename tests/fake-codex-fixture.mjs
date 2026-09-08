@@ -352,6 +352,8 @@ rl.on("line", (line) => {
       }
 
       case "thread/resume": {
+        state.lastThreadResume = message.params;
+        saveState(state);
         if (requiresExperimental("persistExtendedHistory", message, state) || requiresExperimental("persistFullHistory", message, state)) {
           throw new Error("thread/resume.persistFullHistory requires experimentalApi capability");
         }

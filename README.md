@@ -6,6 +6,14 @@ and use `/code-review` when you want a GitHub PR summary comment.
 This plugin is for Claude Code users who want an easy way to start using Codex from the workflow
 they already have.
 
+Codex runs default to **Astra (`gpt-6-astra`) with low reasoning effort**. This
+applies to native reviews (including Opulent and GitHub PR reviews), adversarial
+reviews, and rescue/task runs, including resumed tasks. Explicit model/effort
+overrides remain supported where the command exposes them. These are per-run
+plugin defaults; your global Codex settings and Claude forwarding-agent models
+are unchanged. The model identifier and low effort are verified against the
+[official Astra documentation](https://developers.openai.com/api/docs/models/gpt-6-astra).
+
 ## What You Get
 
 - `code-review:reviewer` to take over Opulent's review lane automatically while this plugin is enabled

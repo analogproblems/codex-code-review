@@ -109,6 +109,9 @@ for (const behavior of ["lane-review-ok", "lane-review-findings", "review-fails"
     assert.equal(result.status, success ? 0 : 1, result.stderr);
     const state = JSON.parse(fs.readFileSync(path.join(bin, "fake-codex-state.json"), "utf8"));
     assert.equal(state.lastThreadStart.sandbox, "read-only");
+    assert.equal(state.lastThreadStart.model, "gpt-6-astra");
+    assert.equal(state.lastThreadStart.config.model_reasoning_effort, "low");
+    assert.equal(state.lastThreadStart.config.review_model, "gpt-6-astra");
     assert.equal(state.lastThreadStart.approvalPolicy, "never");
     assert.equal(state.lastThreadStart.ephemeral, true);
     assert.equal(state.lastReviewStart.target.type, "custom");
