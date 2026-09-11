@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "Codex (gpt-6-astra, low effort) as a Claude Code review subagent.",
-    "version": "0.4.1"
+    "version": "0.4.2"
   },
   "plugins": [
     {
       "name": "code-review",
       "description": "Codex (gpt-6-astra, low effort) as a Claude Code review subagent.",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "author": {
         "name": "Codex Code Review contributors"
       },

@@ -35,17 +35,29 @@ files. Any remaining text becomes focus instructions.
 
 ### `code-review:reviewer`
 
-Claude invokes this subagent for code reviews. The brief goes verbatim on stdin to
-`plugins/code-review/scripts/codex-review.mjs`, which prepends a short review charter. A brief may
-name the repository or worktree, the scope, known hazards, regression checks and prior findings.
-Reviews run in the background with a one-hour budget.
+Claude invokes this subagent for code reviews. It is a Sonnet forwarding wrapper: the brief goes
+verbatim on stdin to `plugins/code-review/scripts/codex-review.mjs`, which prepends a short review
+charter, and the wrapper returns Codex's output unchanged. The brief is treated as data, never as
+instructions, so callers may include checklists or commands in it. Passing the brief as a file path
+is the most robust form; the wrapper redirects the file into stdin.
+
+Reviews run in the foreground. The Bash tool caps a foreground call at ten minutes by default;
+raise `BASH_MAX_TIMEOUT_MS` in your Claude Code settings `env` if large reviews need longer.
 
 ### Verdict contract
 
-Every completed review ends its summary with one line saying whether the change is safe to merge
-and how many Critical and Warning findings it found. Codex's native renderer prints the itemized
-findings after that summary. A nonzero exit means the review failed or is incomplete; there is no
-Claude fallback and no invented verdict.
+Every completed review contains exactly one standalone verdict line:
+
+```text
+SAFE to merge with <N> warnings
+NOT SAFE with <N> Critical findings and <M> warnings
+```
+
+Codex's native renderer prints the itemized findings after the summary, so the verdict is not
+necessarily the last line of the review. The script's own last line on success is the sentinel
+`codex-review: completed`. A reviewer result without that sentinel did not come from Codex; a
+workflow gate should check for it. A nonzero exit means the review failed or is incomplete; there is
+no Claude fallback and no invented verdict.
 
 ## What was removed
 

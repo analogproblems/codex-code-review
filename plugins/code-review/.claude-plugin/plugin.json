@@ -1,6 +1,6 @@
 {
   "name": "code-review",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Codex (gpt-6-astra, low effort) as a Claude Code review subagent.",
   "author": {
     "name": "Codex Code Review contributors"
