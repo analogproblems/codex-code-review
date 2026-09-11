@@ -1,6 +1,6 @@
 # Codex-backed code review for Claude Code
 
-A minimal Claude Code plugin that hands code review to the Codex CLI. A Haiku subagent (`code-review:reviewer`)
+A minimal Claude Code plugin that hands code review to the Codex CLI. A Sonnet subagent (`code-review:reviewer`)
 forwards a literal review brief to `codex review` running `gpt-6-astra` at low reasoning effort, and returns
 Codex's output verbatim. Claude never reviews the code itself and never fixes what the review finds.
 
