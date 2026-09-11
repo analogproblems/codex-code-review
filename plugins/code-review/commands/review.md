@@ -31,7 +31,7 @@ CODEX_BRIEF_6f4e91
 Then wait for the background task to complete, allowing up to one hour.
 
 Output rules:
-- Return the command stdout verbatim, exactly as-is.
+- Return the command stdout verbatim, exactly as-is. The verdict line may appear before the itemized findings.
 - Do not paraphrase, summarize, or add commentary before or after it.
 - Do not fix any issues mentioned in the review output.
 - A nonzero exit is a failed or incomplete review: show the error and do not invent a verdict.

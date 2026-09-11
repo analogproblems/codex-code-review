@@ -51,12 +51,15 @@ run in the background with a one-hour budget.
 
 ### Verdict contract
 
-Every completed review ends with exactly one standalone final line:
+Every completed review contains exactly one standalone verdict line:
 
 ```text
 SAFE to merge with <N> warnings
 NOT SAFE with <N> Critical findings and <M> warnings
 ```
+
+Codex's native renderer prints its summary, coverage and verdict first, then the itemized
+findings under "Full review comments", so the verdict line is not necessarily the last line.
 
 A nonzero exit means the review failed or is incomplete. There is no Claude fallback and
 no invented verdict.
