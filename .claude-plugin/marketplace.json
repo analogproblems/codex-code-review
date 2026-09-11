@@ -4,14 +4,14 @@
     "name": "Codex Code Review contributors"
   },
   "metadata": {
-    "description": "A Codex-backed drop-in replacement for Claude Code's code-review plugin.",
-    "version": "0.3.2"
+    "description": "Codex (gpt-6-astra, low effort) as a Claude Code review subagent.",
+    "version": "0.4.0"
   },
   "plugins": [
     {
       "name": "code-review",
-      "description": "Route code reviews to Codex, superseding Opulent's reviewer lane, with optional GitHub PR summary comments.",
-      "version": "0.3.2",
+      "description": "Codex (gpt-6-astra, low effort) as a Claude Code review subagent.",
+      "version": "0.4.0",
       "author": {
         "name": "Codex Code Review contributors"
       },

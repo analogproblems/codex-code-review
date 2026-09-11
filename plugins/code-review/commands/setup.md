@@ -1,16 +1,16 @@
 ---
-description: Check whether Codex, GitHub CLI, and the review runtime are ready
-argument-hint: '[--enable-review-gate|--disable-review-gate]'
-allowed-tools: Bash(node:*), Bash(npm:*), AskUserQuestion
+description: Check whether Codex is installed and authenticated
+allowed-tools: Bash(codex:*), Bash(npm:*), AskUserQuestion
 ---
 
-Run:
+Check the Codex CLI:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" setup --json $ARGUMENTS
+codex --version
+codex login status
 ```
 
-If the result says Codex is unavailable and npm is available:
+If `codex --version` fails and npm is available:
 - Use `AskUserQuestion` exactly once to ask whether Claude should install Codex now.
 - Put the install option first and suffix it with `(Recommended)`.
 - Use these two options:
@@ -22,17 +22,12 @@ If the result says Codex is unavailable and npm is available:
 npm install -g @openai/codex
 ```
 
-- Then rerun:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" setup --json $ARGUMENTS
-```
+- Then rerun the two checks above.
 
 If Codex is already installed or npm is unavailable:
 - Do not ask about installation.
 
 Output rules:
-- Present the final setup output to the user.
-- If installation was skipped, present the original setup output.
-- If Codex is installed but not authenticated, preserve the guidance to run `!codex login`.
-- If GitHub CLI is missing or unauthenticated, preserve the guidance to install `gh` or run `gh auth login`. Do not install or authenticate it automatically.
+- Report the Codex version and login status to the user.
+- If installation was skipped, say that reviews will fail until Codex is installed.
+- If Codex is installed but not authenticated, tell the user to run `!codex login`.

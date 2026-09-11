@@ -1,9 +1,9 @@
 Copyright 2026 OpenAI
 
 This distribution is derived from OpenAI's Codex plugin for Claude Code at
-commit db52e28f4d9ded852ab3942cea316258ae4ef346. It has been modified to
-provide a GitHub pull-request review workflow under the code-review plugin
-name. See UPSTREAM.md for provenance and a summary of changes.
+commit db52e28f4d9ded852ab3942cea316258ae4ef346. It has been reduced to a minimal Codex-backed
+review subagent for Claude Code. See UPSTREAM.md for provenance and a summary of
+changes.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

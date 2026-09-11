@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+- Strip the plugin to a `code-review:reviewer` subagent plus the `/code-review:review`
+  and `/code-review:setup` commands.
+- Drive the `codex review` CLI directly from a single Node script with no dependencies,
+  fixing the review to `gpt-6-astra` at low reasoning effort.
+- Remove the Opulent routing hooks, session-lifecycle and stop-review-gate hooks.
+- Remove GitHub pull-request reviews and comments, adversarial review, and the
+  rescue/transfer/status/result/cancel commands and their job tracking.
+- Remove Docker-based executable verification, the Codex app-server broker, and the
+  test/build tooling (`package.json`, tests, CI).
+
 ## 0.3.2
 
 - Reject checkout-owned Git and Docker executables across the full repository

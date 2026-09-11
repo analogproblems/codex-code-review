@@ -1,7 +1,7 @@
 {
   "name": "code-review",
-  "version": "0.3.2",
-  "description": "Route code reviews to Codex, superseding Opulent's reviewer lane, with optional GitHub PR summary comments.",
+  "version": "0.4.0",
+  "description": "Codex (gpt-6-astra, low effort) as a Claude Code review subagent.",
   "author": {
     "name": "Codex Code Review contributors"
   }
